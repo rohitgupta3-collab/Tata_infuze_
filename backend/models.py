@@ -11,6 +11,7 @@ class AssignResult(BaseModel):
     medicine_id: str
     bin: str
     upserted: bool 
+    total_stock: int
     
 class StockUpdateResult(BaseModel):
     medicine_id: str

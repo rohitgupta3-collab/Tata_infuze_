@@ -31,7 +31,7 @@ async def assign_bin(qr: QRPayload, db: Any = Depends(get_db)) -> AssignResult:
                     "category": qr.category,
                     "bin": bin_id,
                 },
-                "$inc": {"count": count_to_add}
+                "$inc": {"stock": count_to_add}
             }
         )
         updated_doc = await db.medicines.find_one({"id": qr.id})
@@ -53,7 +53,7 @@ async def assign_bin(qr: QRPayload, db: Any = Depends(get_db)) -> AssignResult:
     return AssignResult(
         medicine_id=qr.id,
         bin=bin_id,
-        upserted=upserted
+        upserted=upserted,
         total_stock=total_stock
     )
     
