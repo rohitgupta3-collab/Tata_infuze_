@@ -3,8 +3,23 @@ from typing import Any
 from backend.models import QRPayload, AssignResult
 from backend.db import get_db, init_indexes
 from backend.bin_rules import choose_bin, DEFAULT_BIN_MAP
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title = "Warehouse Management API")
+
+#CORS For React dev
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",  
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = origins,
+    allow_credentials = True,
+    allow_methods = ["*"],
+    allow_headers = ["*"],
+)
 
 @app.on_event("startup")
 async def _startup() -> None:
