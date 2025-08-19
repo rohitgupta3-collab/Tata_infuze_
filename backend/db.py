@@ -1,30 +1,11 @@
-from __future__ import annotations
-import os
-from typing import Any
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
+from pymongo import MongoClient
 
-load_dotenv()
+MONGO_URI = "mongodb+srv://siyonabansal:7p3KxjlKW9vKfuwY@smartbins.4cojrhu.mongodb.net/?retryWrites=true&w=majority&appName=Smartbins"
 
-_MONGO_CLIENT: AsyncIOMotorClient | None = None
+client = MongoClient(MONGO_URI)
 
-def _mongo_uri() -> str:
-    return os.getenv("MONGODB_URI") or os.getenv("MONGO_URI") or "mongodb://localhost:27017"
+db = client["smartbins"]
 
-def _db_name() -> str:
-    return os.getenv("MONGODB_DB", "warehouse")
-
-async def get_db() -> Any:
-    '''
-    Fast API dependency to get the DB Handle
-    '''
-    global _MONGO_CLIENT
-    if _MONGO_CLIENT is None:
-        _MONGO_CLIENT = AsyncIOMotorClient(_mongo_uri())
-        
-    return _MONGO_CLIENT[_db_name()]
-
-async def init_indexes(db) -> None:
-    await db.medicines.create_index("id", unique = True)
-    await db.medicines.create_index("category")
-    await db.medicines.create_index("bin")
+bins_collection = db["bins"]
+medicines_collection = db["medicines"]
+orders_collection = db["orders"]
