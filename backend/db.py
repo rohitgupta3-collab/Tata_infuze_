@@ -25,6 +25,5 @@ async def get_db() -> Any:
     return _MONGO_CLIENT[_db_name()]
 
 async def init_indexes(db) -> None:
-    await db.medicines.create_index("id", unique = True)
     await db.medicines.create_index("category")
     await db.medicines.create_index("bin")

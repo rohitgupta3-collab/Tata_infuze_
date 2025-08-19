@@ -9,6 +9,7 @@ class QRPayload(BaseModel):
     
 class AssignResult(BaseModel):
     medicine_id: str
+    medicine_name: str
     bin: str
     upserted: bool 
     total_stock: int
