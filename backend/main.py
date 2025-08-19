@@ -13,7 +13,6 @@ async def _startup() -> None:
     await init_indexes(db)
     
 @app.post("/assign-bin", response_model=AssignResult)
-@app.post("/choose-bin", response_model=AssignResult)
 async def assign_bin(qr: QRPayload, db: Any = Depends(get_db)) -> AssignResult:
     bin_id, _reason = choose_bin(qr.model_dump(), DEFAULT_BIN_MAP)
     count_to_add = qr.count or 1
