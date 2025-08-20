@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
-from typing import Any
-from backend.models import QRPayload, AssignResult
+from typing import Any, List
+from backend.models import CollectMedicineRequest, QRPayload, AssignResult
 from backend.db import get_db, init_indexes
 from backend.bin_rules import choose_bin, DEFAULT_BIN_MAP
 from fastapi.middleware.cors import CORSMiddleware
@@ -84,5 +84,40 @@ async def get_medicine_location(medicine_name: str, db: Any = Depends(get_db)):
     if not medicine:
         raise HTTPException(status_code=404, detail="Medicine not found")
     
-   #medicine.pop("_id", None)  # Remove MongoDB's ObjectId field
+    medicine.pop("_id", None)  # Remove MongoDB's ObjectId field
     return medicine
+
+
+@app.post("/receive-order")
+async def receive_order(order_items: List[dict], db: Any = Depends(get_db)):
+    # Validate each medicine in the order
+    results = []
+    for item in order_items:
+        name = item.get("name", "").strip()
+        qty = item.get("quantity", 0)
+        med = await db.medicines.find_one({"name": {"$regex": f"^{name}$", "$options": "i"}})
+        if not med:
+            results.append({"name": name, "status": "not_found"})
+        elif med.get("stock", 0) < qty:
+            results.append({"name": name, "status": "insufficient_stock", "available": med.get("stock", 0)})
+        else:
+            results.append({"name": name, "status": "ok", "bin": med.get("bin")})
+    return {"results": results}
+
+
+@app.post("/collect-medicine")
+async def collect_medicine(request: CollectMedicineRequest, db: Any = Depends(get_db)):
+    # Subtract quantity from stock for the given medicine
+    med = await db.medicines.find_one({"name": {"$regex": f"^{request.medicine_name.strip()}$", "$options": "i"}})
+    if not med:
+        raise HTTPException(status_code=404, detail="Medicine not found")
+    if med.get("stock", 0) < request.quantity:
+        raise HTTPException(status_code=400, detail="Insufficient stock")
+    await db.medicines.update_one(
+        {"name": {"$regex": f"^{request.medicine_name.strip()}$", "$options": "i"}},
+        {"$inc": {"stock": -request.quantity}}
+    )
+    return {"name": request.medicine_name, "collected": request.quantity}
+
+
+#API To show what all orders have been recieved, to show in the ui of warehouse Laptop

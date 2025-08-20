@@ -18,3 +18,7 @@ class StockUpdateResult(BaseModel):
     medicine_id: str
     current_stock: int
     updated: bool = Field(default=True, description="Indicates if the stock was updated successfully")
+    
+class CollectMedicineRequest(BaseModel):
+    medicine_name: str = Field(..., description="Name of the medicine to collect")
+    quantity: int = Field(..., description="Quantity to collect", gt=0)

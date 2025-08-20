@@ -3,6 +3,7 @@ import os
 from typing import Any
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+import certifi
 
 load_dotenv()
 
@@ -20,10 +21,11 @@ async def get_db() -> Any:
     '''
     global _MONGO_CLIENT
     if _MONGO_CLIENT is None:
-        _MONGO_CLIENT = AsyncIOMotorClient(_mongo_uri())
+        _MONGO_CLIENT = AsyncIOMotorClient(_mongo_uri(),  tlsCAFile=certifi.where())
         
     return _MONGO_CLIENT[_db_name()]
 
 async def init_indexes(db) -> None:
     await db.medicines.create_index("category")
     await db.medicines.create_index("bin")
+    await db.medicines.create_index("name")
