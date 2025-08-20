@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 class QRPayload(BaseModel):
@@ -22,3 +22,9 @@ class StockUpdateResult(BaseModel):
 class CollectMedicineRequest(BaseModel):
     medicine_name: str = Field(..., description="Name of the medicine to collect")
     quantity: int = Field(..., description="Quantity to collect", gt=0)
+    
+    
+class Order(BaseModel):
+    customer_name: str = Field(..., description="Name of the customer")
+    items: List[dict] = Field(..., description="List of medicines and quantities")
+    status: str = Field(default="pending", description="Order status")

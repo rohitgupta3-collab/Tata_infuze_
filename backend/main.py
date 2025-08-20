@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from typing import Any, List
-from backend.models import CollectMedicineRequest, QRPayload, AssignResult
+from backend.models import CollectMedicineRequest, Order, QRPayload, AssignResult
 from backend.db import get_db, init_indexes
 from backend.bin_rules import choose_bin, DEFAULT_BIN_MAP
 from fastapi.middleware.cors import CORSMiddleware
@@ -121,3 +121,51 @@ async def collect_medicine(request: CollectMedicineRequest, db: Any = Depends(ge
 
 
 #API To show what all orders have been recieved, to show in the ui of warehouse Laptop
+
+@app.get("/medicines")
+async def get_medicines(db: Any = Depends(get_db)):
+    """
+    Get list of all medicines in the warehouse.
+    """
+    cursor = db.medicines.find({})
+    medicines = []
+    async for med in cursor:
+        med.pop("_id", None)
+        medicines.append(med)
+    return {"medicines": medicines}
+
+
+@app.post("/orders")
+async def create_order(order: Order, db: Any = Depends(get_db)):
+    """
+    Place a new order.
+    """
+    order_dict = order.dict()
+    result = await db.orders.insert_one(order_dict)
+    order_dict["_id"] = str(result.inserted_id)
+    return order_dict
+
+
+@app.get("/orders")
+async def get_orders(db: Any = Depends(get_db)):
+    """
+    Get all placed orders (for warehouse UI).
+    """
+    cursor = db.orders.find({})
+    orders = []
+    async for order in cursor:
+        order["_id"] = str(order["_id"])
+        orders.append(order)
+    return {"orders": orders}
+
+from bson import ObjectId
+
+@app.delete("/orders/{order_id}")
+async def delete_order(order_id: str, db: Any = Depends(get_db)):
+    """
+    Delete an order from the orders collection by its ID.
+    """
+    result = await db.orders.delete_one({"_id": ObjectId(order_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"message": "Order deleted successfully", "order_id": order_id}
