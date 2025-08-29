@@ -4,14 +4,23 @@ from backend.models import CollectMedicineRequest, Order, QRPayload, AssignResul
 from backend.db import get_db, init_indexes
 from backend.bin_rules import choose_bin, DEFAULT_BIN_MAP
 from fastapi.middleware.cors import CORSMiddleware
+from arduino.basic import arduino_service
 
+active_picker_colors = set()
 app = FastAPI(title = "Warehouse Management API")
+
 
 #CORS For React dev
 origins = [
     "*"  
 ]
 
+def get_available_picker_color():
+    picker_colors = ["BLUE", "GREEN", "YELLOW"]
+    for color in picker_colors:
+        if color not in active_picker_colors:
+            return color
+        
 app.add_middleware(
     CORSMiddleware,
     allow_origins = origins,
@@ -89,8 +98,12 @@ async def get_medicine_location(medicine_name: str, db: Any = Depends(get_db)):
 
 @app.post("/receive-order")
 async def receive_order(order_items: List[dict], db: Any = Depends(get_db)):
-    # Validate each medicine in the order
+    global active_picker_colors
     results = []
+    picker_color = get_available_picker_color()
+    # if not picker_color:
+    #     print('All pickers are busy. Please wait.')
+    active_picker_colors.add(picker_color)
     for item in order_items:
         name = item.get("name", "").strip()
         qty = item.get("quantity", 0)
@@ -100,24 +113,39 @@ async def receive_order(order_items: List[dict], db: Any = Depends(get_db)):
         elif med.get("stock", 0) < qty:
             results.append({"name": name, "status": "insufficient_stock", "available": med.get("stock", 0)})
         else:
-            results.append({"name": name, "status": "ok", "bin": med.get("bin")})
-    return {"results": results}
-
+            bin_id = med.get("bin", "Bin-Default")
+            arduino_service.led_on(bin_id, picker_color)
+            # Store picker_color in the medicine document
+            await db.medicines.update_one(
+                {"name": {"$regex": f"^{name}$", "$options": "i"}},
+                {"$set": {"current_picker_color": picker_color}}
+            )
+            results.append({"name": name, "status": "ok", "bin": bin_id, "picker": picker_color})
+    return {"results": results, "picker_color": picker_color}
 
 @app.post("/collect-medicine")
 async def collect_medicine(request: CollectMedicineRequest, db: Any = Depends(get_db)):
-    # Subtract quantity from stock for the given medicine
     med = await db.medicines.find_one({"name": {"$regex": f"^{request.medicine_name.strip()}$", "$options": "i"}})
     if not med:
         raise HTTPException(status_code=404, detail="Medicine not found")
     if med.get("stock", 0) < request.quantity:
         raise HTTPException(status_code=400, detail="Insufficient stock")
+    
+    picker_color = med.get("current_picker_color") 
+    
     await db.medicines.update_one(
         {"name": {"$regex": f"^{request.medicine_name.strip()}$", "$options": "i"}},
-        {"$inc": {"stock": -request.quantity}}
+        {
+            "$inc": {"stock": -request.quantity},
+            "$unset": {"current_picker_color": ""}  # Remove picker color after collection
+        }
     )
-    return {"name": request.medicine_name, "collected": request.quantity}
-
+    # Turn OFF LED for this bin and picker color
+    bin_id = med.get("bin", "Bin-Default")
+    arduino_service.led_off(bin_id, request.picker_color)
+    
+    active_picker_colors.discard(picker_color)
+    return {"name": request.medicine_name, "collected": request.quantity, "picker_color": picker_color}
 
 #API To show what all orders have been recieved, to show in the ui of warehouse Laptop
 
@@ -164,7 +192,22 @@ async def delete_order(order_id: str, db: Any = Depends(get_db)):
     """
     Delete an order from the orders collection by its ID.
     """
+    global active_picker_colors
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    picker_colors = ["BLUE", "GREEN", "YELLOW"]
+    for idx, item in enumerate(order.get("items", [])):
+        name = item.get("name", "").strip()
+        med = await db.medicines.find_one({"name": {"$regex": f"^{name}$", "$options": "i"}})
+        if med:
+            bin_id = med.get("bin", "Bin-Default")
+            picker_color = picker_colors[idx % 3]
+            arduino_service.led_off(bin_id, picker_color)  # Turn OFF LED
     result = await db.orders.delete_one({"_id": ObjectId(order_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Order not found")
     return {"message": "Order deleted successfully", "order_id": order_id}
+
+
+#it currently fails when I click on the process order(colour assigned) and goes back(if more than 3, then it is null)

@@ -22,7 +22,7 @@ class StockUpdateResult(BaseModel):
 class CollectMedicineRequest(BaseModel):
     medicine_name: str = Field(..., description="Name of the medicine to collect")
     quantity: int = Field(..., description="Quantity to collect", gt=0)
-    
+    picker_color: Optional[str] = Field(None, description="Picker color - will be retrieved from medicine document if not provided") 
     
 class Order(BaseModel):
     customer_name: str = Field(..., description="Name of the customer")
